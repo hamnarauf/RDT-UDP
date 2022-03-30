@@ -18,8 +18,8 @@ FILE_NAME = argv[2]
 
 # Socket for client
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-BadNet0.BadNet.transmit(client, FILE_NAME.encode(FORMAT), SERVER_IP, PORT)
 print(f"Sending file {FILE_NAME}...")
+BadNet0.BadNet.transmit(client, FILE_NAME.encode(FORMAT), SERVER_IP, PORT)
 
 # Wait for server to send new temporary port
 data, ADDR = client.recvfrom(PACKET_SIZE)

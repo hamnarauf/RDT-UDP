@@ -41,30 +41,26 @@ def handle_client(data, addr):
     # Open the file in 'write-byte' mode
     f = open(file_name, 'wb')
 
-    received = False
-    while not received:
+    # Wait for client to send additional packets
+    data, addr = temp_sock.recvfrom(PACKET_SIZE)
+    
+    # Write them into the file
+    f.write(data)
+    
+    while True:
         
-        # Wait for client to send additional packets
-        data, addr = temp_sock.recvfrom(PACKET_SIZE)
+        # Useful for indicating whether there is some data being transmitted to the socket
+        ready = select.select([temp_sock], [], [], TIMEOUT)
         
-        # Write them into the file
-        f.write(data)
-        
-        while True:
-            
-            # Useful for indicating end of packet transmission
-            ready = select.select([temp_sock], [], [], TIMEOUT)
-            
-            if ready[0]:
-                data, addr = temp_sock.recvfrom(PACKET_SIZE)
-                f.write(data)
+        if ready[0]:
+            data, addr = temp_sock.recvfrom(PACKET_SIZE)
+            f.write(data)
 
-            else:
-                print(f"Finished receiving {file_name.decode(FORMAT)} from [{addr}]")
-                f.close()
-                temp_sock.close()
-                received = True
-                break
+        else:
+            print(f"Finished receiving {file_name.decode(FORMAT)} from [{addr}]")
+            f.close()
+            temp_sock.close()
+            break
     
     
 def start():
@@ -80,9 +76,8 @@ def start():
         data, addr = server.recvfrom(PACKET_SIZE)
         
         # Handle each client in a separate thread
-        if data:
-            thread = threading.Thread(target=handle_client, args=(data, addr))
-            thread.start()
+        thread = threading.Thread(target=handle_client, args=(data, addr))
+        thread.start()
 
 
 start()
