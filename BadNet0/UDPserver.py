@@ -16,7 +16,7 @@ SERVER_IP = socket.gethostbyname(socket.gethostname())
 PACKET_SIZE = 1024
 ADDR = (SERVER_IP, PORT)
 FORMAT = 'utf-8'
-TIMEOUT = 3
+TIMEOUT = 0.1
 
 
 # Handle every client request in a separate thread. Dynamically create new sockets bound to new ports.
@@ -41,8 +41,8 @@ def handle_client(data, addr):
     # Open the file in 'write-byte' mode
     f = open(file_name, 'wb')
 
-
-    while True:
+    received = False
+    while not received:
         
         # Wait for client to send additional packets
         data, addr = temp_sock.recvfrom(PACKET_SIZE)
@@ -63,6 +63,7 @@ def handle_client(data, addr):
                 print(f"Finished receiving {file_name.decode(FORMAT)} from [{addr}]")
                 f.close()
                 temp_sock.close()
+                received = True
                 break
     
     
