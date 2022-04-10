@@ -2,7 +2,7 @@ import socket
 import threading
 import select
 from sys import argv, exit
-from client.Badnet import BadNet1 as badnet
+from client.Badnet import BadNet0 as badnet
 from client.Utility import utilFunctions as util
 
 # Accepting valid command line arguments
@@ -32,48 +32,50 @@ def handle_client(packet, addr):
     client_IP = addr[0]
     client_port = addr[1]
 
-    # Extract contents of packet
-    seq_no, data = util.extract(packet)
+    if(not util.iscorrupt(packet)):
+        # Extract contents of packet
+        seq_no, data = util.extract(packet)
 
-    # Send ack
-    ack, seq = util.make_pkt(ack=True, seq=seq_no)
-    badnet.BadNet.transmit(server, ack, client_IP, client_port)
+        # Send ack
+        ack, seq = util.make_pkt(ack=True, seq=seq_no)
+        badnet.BadNet.transmit(server, ack, client_IP, client_port)
 
-    # If the sent packet is a finish request
-    if util.is_finish(packet):
-        return
+        # If the sent packet is a finish request
+        if util.is_finish(packet):
+            return
 
-    DATA_BUFF[seq_no] = data
-    length += 1
+        DATA_BUFF[seq_no] = data
+        length += 1
 
     while True:
 
         recv_pkt, addr = server.recvfrom(PACKET_SIZE)
 
-        seq_no, data = util.extract(recv_pkt)
+        if(not util.iscorrupt(recv_pkt)):
+            seq_no, data = util.extract(recv_pkt)
 
-        if util.is_finish(recv_pkt):
+            if util.is_finish(recv_pkt):
 
-            ack, seq = util.make_pkt(ack=True, seq=seq_no)
-            badnet.BadNet.transmit(server, ack, client_IP, client_port)
-            print(f"Disconnecting from client [{addr}]")
-            break
-        
-        else:
-            # If the packet is not a duplicate
-            if DATA_BUFF[seq_no] == 0:
-                
-                # Insert into data buffer
-                DATA_BUFF[seq_no] = data
-                length += 1
-  
-            # Discard duplicate packet
+                ack, seq = util.make_pkt(ack=True, seq=seq_no)
+                badnet.BadNet.transmit(server, ack, client_IP, client_port)
+                print(f"Disconnecting from client [{addr}]")
+                break
+            
             else:
-                pass
+                # If the packet is not a duplicate
+                if DATA_BUFF[seq_no] == 0:
+                    
+                    # Insert into data buffer
+                    DATA_BUFF[seq_no] = data
+                    length += 1
+    
+                # Discard duplicate packet
+                else:
+                    pass
 
-            # Send ack
-            ack, seq = util.make_pkt(ack=True, seq=seq_no)
-            badnet.BadNet.transmit(server, ack, client_IP, client_port)
+                # Send ack
+                ack, seq = util.make_pkt(ack=True, seq=seq_no)
+                badnet.BadNet.transmit(server, ack, client_IP, client_port)
     
     write_file()
     length = 0    

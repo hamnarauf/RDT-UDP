@@ -1,9 +1,10 @@
 import pickle
+from hashlib import md5
 
 SEQ_NO = 0
 
 def make_pkt(data=b'0', ack=False, finish=False, seq=None):
-    '''Make Packet, Format: seq.no, ack_bit, finish_bit, data'''
+    '''Make Packet, Format: seq.no, ack_bit, finish_bit, checksum, data'''
     global SEQ_NO
     pkt = []
     
@@ -31,6 +32,7 @@ def make_pkt(data=b'0', ack=False, finish=False, seq=None):
     else:
         pkt.append(b'0')
 
+    pkt.append(get_checksum(data))
     pkt.append(data)
     pkt = pickle.dumps(pkt)
     
@@ -58,3 +60,21 @@ def is_ack(pkt):
 def is_finish(pkt):
     finish_bit = pickle.loads(pkt)[2]
     return finish_bit == b'1'
+
+def get_checksum(data):
+    '''Generates 2-byte checksum using md5 hash function'''
+    checksum = md5(data).digest()[-2:]
+
+    return checksum
+
+
+def iscorrupt(pkt):
+    '''Returns true if packet is corrupt'''
+
+    try:
+        # deserializing packet
+        pkt = pickle.loads(pkt)
+        return not(get_checksum(pkt[-1]) == pkt[-2])
+    
+    except:
+        return True

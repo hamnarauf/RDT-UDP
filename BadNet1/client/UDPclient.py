@@ -1,7 +1,7 @@
 import socket
 from struct import pack
 from sys import argv, exit
-from Badnet import BadNet1 as badnet
+from Badnet import BadNet0 as badnet
 import time
 import select
 from Utility import utilFunctions as util
@@ -16,7 +16,7 @@ if len(argv) < 3:
 PORT = int(argv[1])
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 PACKET_SIZE = 1024
-DATA_SIZE = 980
+DATA_SIZE = 975
 ADDR = (SERVER_IP, PORT)
 FORMAT = 'utf-8'
 FILE_NAME = argv[2]
@@ -30,9 +30,11 @@ def check_for_acks():
 
     if ready[0]:
         recv_pkt, addr = client.recvfrom(PACKET_SIZE)
-        seq_no = util.extract_seq(recv_pkt)
+        
+        if(not util.iscorrupt(recv_pkt)):
+            seq_no = util.extract_seq(recv_pkt)
 
-        packets.pop(seq_no, None)
+            packets.pop(seq_no, None)
         
 
 # Socket for client
