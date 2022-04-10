@@ -1,11 +1,9 @@
 import socket
-from struct import pack
 from sys import argv, exit
-from Badnet import BadNet0 as badnet
+from Badnet import BadNet5 as badnet
 import time
 import select
 from Utility import utilFunctions as util
-from queue import Queue
 
 # Accepting valid command line arguments
 if len(argv) < 3:
@@ -31,11 +29,11 @@ def check_for_acks():
     if ready[0]:
         recv_pkt, addr = client.recvfrom(PACKET_SIZE)
         
-        if(not util.iscorrupt(recv_pkt)):
+        if not util.iscorrupt(recv_pkt):
             seq_no = util.extract_seq(recv_pkt)
 
             packets.pop(seq_no, None)
-        
+            return True
 
 # Socket for client
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -69,7 +67,6 @@ while data:
     packets[seq_no] = packet
 
     data = f.read(DATA_SIZE)
-    # time.sleep(0.01)
 
 # Check for acks again after making all the packets from file
 check_for_acks()
@@ -93,7 +90,6 @@ packets[seq_no] = finish
 while len(packets) != 0: 
     badnet.BadNet.transmit(client, finish, SERVER_IP, PORT)
     check_for_acks()
-    # time.sleep(0.05)
 
 # Closing the socket and the file
 client.close()

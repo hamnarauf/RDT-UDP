@@ -1,8 +1,6 @@
 import socket
-import threading
-import select
 from sys import argv, exit
-from client.Badnet import BadNet0 as badnet
+from client.Badnet import BadNet5 as badnet
 from client.Utility import utilFunctions as util
 
 # Accepting valid command line arguments
@@ -32,12 +30,14 @@ def handle_client(packet, addr):
     client_IP = addr[0]
     client_port = addr[1]
 
-    if(not util.iscorrupt(packet)):
+    if not util.iscorrupt(packet):
+        
         # Extract contents of packet
         seq_no, data = util.extract(packet)
 
         # Send ack
         ack, seq = util.make_pkt(ack=True, seq=seq_no)
+
         badnet.BadNet.transmit(server, ack, client_IP, client_port)
 
         # If the sent packet is a finish request
@@ -47,11 +47,12 @@ def handle_client(packet, addr):
         DATA_BUFF[seq_no] = data
         length += 1
 
+
     while True:
 
         recv_pkt, addr = server.recvfrom(PACKET_SIZE)
 
-        if(not util.iscorrupt(recv_pkt)):
+        if not util.iscorrupt(recv_pkt):
             seq_no, data = util.extract(recv_pkt)
 
             if util.is_finish(recv_pkt):
@@ -101,14 +102,16 @@ def write_file():
 
 def start():
 
+    print(f"[{SERVER_IP}]: Server is listening on PORT {PORT}")
+    
     while True:
-        
-        print(f"[{SERVER_IP}]: Server is listening on PORT {PORT}")
-        
-        # Blocking UDP Code (waiting for client to send packets)
-        rcv_packet, addr = server.recvfrom(PACKET_SIZE)
+        try:
+            # Blocking UDP Code (waiting for client to send packets)
+            rcv_packet, addr = server.recvfrom(PACKET_SIZE)
 
-        # Handle client requests
-        handle_client(rcv_packet, addr)
+            # Handle client requests
+            handle_client(rcv_packet, addr)
+        except:
+            pass
 
 start()

@@ -24,7 +24,7 @@ def make_pkt(data=b'0', ack=False, finish=False, seq=None):
         
         # Set ack bit to 0
         pkt.append(b'0')
-    
+
     # Finish bit determines whether we need to disconnect from a particular client or not.
     if finish:
         pkt.append(b'1')
@@ -36,7 +36,7 @@ def make_pkt(data=b'0', ack=False, finish=False, seq=None):
     pkt.append(data)
     pkt = pickle.dumps(pkt)
     
-    # Ack and finish?????? packets should not increment the sequence number.
+    # Ack packets should not increment the sequence number.
     if not ack:
         SEQ_NO += 1
     
@@ -66,7 +66,6 @@ def get_checksum(data):
     checksum = md5(data).digest()[-2:]
 
     return checksum
-
 
 def iscorrupt(pkt):
     '''Returns true if packet is corrupt'''
