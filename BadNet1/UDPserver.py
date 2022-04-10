@@ -28,35 +28,38 @@ server.bind(ADDR)
 def handle_client(packet, addr):
     """Handle each client requests"""
     global length
+
     client_IP = addr[0]
     client_port = addr[1]
 
-    # Send ack
-    ack = util.make_ack(packet)
-    badnet.BadNet.transmit(server, ack, client_IP, client_port)
-
+    # Extract contents of packet
     seq_no, data = util.extract(packet)
 
-    
-    # DATA_BUFF[seq_no] = data
-    # length += 1
+    # Send ack
+    ack, seq = util.make_pkt(ack=True, seq=seq_no)
+    badnet.BadNet.transmit(server, ack, client_IP, client_port)
 
-    print(f"Receiving file: {data.decode(FORMAT)}")
-    file_name = data.strip()
+    # If the sent packet is a finish request
+    if util.is_finish(packet):
+        return
+
+    DATA_BUFF[seq_no] = data
+    length += 1
 
     while True:
 
         recv_pkt, addr = server.recvfrom(PACKET_SIZE)
 
-        try:
-            recv_pkt.decode(FORMAT) != "!DISCONNECT"
+        seq_no, data = util.extract(recv_pkt)
 
-            print(f"Finished receiving {file_name} from [{addr}]")
+        if util.is_finish(recv_pkt):
+
+            ack, seq = util.make_pkt(ack=True, seq=seq_no)
+            badnet.BadNet.transmit(server, ack, client_IP, client_port)
+            print(f"Disconnecting from client [{addr}]")
             break
         
-        except:
-            seq_no, data = util.extract(recv_pkt)
-            
+        else:
             # If the packet is not a duplicate
             if DATA_BUFF[seq_no] == 0:
                 
@@ -69,12 +72,19 @@ def handle_client(packet, addr):
                 pass
 
             # Send ack
-            ack = util.make_ack(recv_pkt)
+            ack, seq = util.make_pkt(ack=True, seq=seq_no)
             badnet.BadNet.transmit(server, ack, client_IP, client_port)
     
-    write_file(file_name)
+    write_file()
+    length = 0    
+
+def write_file():
     
-def write_file(file_name):
+    global DATA_BUFF
+
+    name = DATA_BUFF[0]
+    print(f"Writing file: {name.decode(FORMAT)}")
+    file_name = name.strip()
     
     # Open the file in 'write-byte' mode
     with open(file_name, 'wb') as f:
@@ -83,22 +93,20 @@ def write_file(file_name):
             
             if DATA_BUFF[index] != 0:
                 f.write(DATA_BUFF[index])
-    
 
+    print(f"Finished writing file {file_name}")
+    DATA_BUFF = [0] * FILE_SIZE
 
 def start():
 
-    print(f"[{SERVER_IP}]: Server is listening on PORT {PORT}")
-
     while True:
+        
+        print(f"[{SERVER_IP}]: Server is listening on PORT {PORT}")
         
         # Blocking UDP Code (waiting for client to send packets)
         rcv_packet, addr = server.recvfrom(PACKET_SIZE)
 
         # Handle client requests
         handle_client(rcv_packet, addr)
-
-
-
 
 start()

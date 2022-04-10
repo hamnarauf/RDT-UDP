@@ -23,8 +23,3 @@ class BadNet:
 			pass	
 
 		BadNet.counter=BadNet.counter+1	
-
-
-
-
-
