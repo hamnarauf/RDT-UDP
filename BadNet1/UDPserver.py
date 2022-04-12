@@ -1,6 +1,6 @@
 import socket
 from sys import argv, exit
-from client.Badnet import BadNet5 as badnet
+from client.Badnet import BadNet3 as badnet
 from client.Utility import utilFunctions as util
 
 # Accepting valid command line arguments
@@ -35,14 +35,20 @@ def handle_client(packet, addr):
         # Extract contents of packet
         seq_no, data = util.extract(packet)
 
-        # Send ack
-        ack, seq = util.make_pkt(ack=True, seq=seq_no)
-
-        badnet.BadNet.transmit(server, ack, client_IP, client_port)
-
+        print(f"Received {seq_no}")
+        
         # If the sent packet is a finish request
         if util.is_finish(packet):
+            ack = util.make_ack(seq_no)
+            print(f'Sending ack of FINISH1 packet {util.extract_seq(ack)}')
+            badnet.BadNet.transmit(server, ack, client_IP, client_port)
             return
+
+        # Send ack
+        ack = util.make_ack(seq_no)
+
+        badnet.BadNet.transmit(server, ack, client_IP, client_port)
+        print(f'Sending ack of packet {util.extract_seq(ack)}')
 
         DATA_BUFF[seq_no] = data
         length += 1
@@ -55,10 +61,13 @@ def handle_client(packet, addr):
         if not util.iscorrupt(recv_pkt):
             seq_no, data = util.extract(recv_pkt)
 
+            print(f"Received {seq_no}")
+
             if util.is_finish(recv_pkt):
 
-                ack, seq = util.make_pkt(ack=True, seq=seq_no)
+                ack = util.make_ack(seq_no)
                 badnet.BadNet.transmit(server, ack, client_IP, client_port)
+                print(f'Sending ack of FINISH2 packet {util.extract_seq(ack)}')
                 print(f"Disconnecting from client [{addr}]")
                 break
             
@@ -75,8 +84,9 @@ def handle_client(packet, addr):
                     pass
 
                 # Send ack
-                ack, seq = util.make_pkt(ack=True, seq=seq_no)
+                ack = util.make_ack(seq_no)
                 badnet.BadNet.transmit(server, ack, client_IP, client_port)
+                print(f'Sending ack of packet {util.extract_seq(ack)}')
     
     write_file()
     length = 0    
@@ -102,9 +112,9 @@ def write_file():
 
 def start():
 
-    print(f"[{SERVER_IP}]: Server is listening on PORT {PORT}")
     
     while True:
+        print(f"[{SERVER_IP}]: Server is listening on PORT {PORT}")
         try:
             # Blocking UDP Code (waiting for client to send packets)
             rcv_packet, addr = server.recvfrom(PACKET_SIZE)
@@ -112,6 +122,7 @@ def start():
             # Handle client requests
             handle_client(rcv_packet, addr)
         except:
+            print("CONNECTION ERRORRR")
             pass
 
 start()

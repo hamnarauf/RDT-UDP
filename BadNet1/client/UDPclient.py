@@ -1,6 +1,6 @@
 import socket
 from sys import argv, exit
-from Badnet import BadNet5 as badnet
+from Badnet import BadNet3 as badnet
 import time
 import select
 from Utility import utilFunctions as util
@@ -28,12 +28,18 @@ def check_for_acks():
 
     if ready[0]:
         recv_pkt, addr = client.recvfrom(PACKET_SIZE)
-        
+     
         if not util.iscorrupt(recv_pkt):
             seq_no = util.extract_seq(recv_pkt)
-
-            packets.pop(seq_no, None)
+            print(f"Received packet {seq_no}")
+            pop = packets.pop(seq_no, None)
+            if pop == None:
+                print(f"Popped NONE")
+            else:
+                print(f"Popping packet {seq_no}")
             return True
+        else:
+            print("CORRUPTED PACKET")
 
 # Socket for client
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -68,31 +74,43 @@ while data:
 
     data = f.read(DATA_SIZE)
 
+# Closing the file
+f.close()
 # Check for acks again after making all the packets from file
 check_for_acks()
 
+print("\n\n\n\nGOING INTO 2nd WHILE LOOP NOW\n\n\n\n\n")
+
 # Keep sending unacknowledged packets until the dictionary is not empty.
 while len(packets) != 0: 
-    tuple_ = packets.popitem()
-    seq_no = tuple_[0]
-    packet = tuple_[1]
-    packets[seq_no] = packet
-    badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
-    check_for_acks()
+
+    for packet in list(packets.values()):
+        badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
+        print('\n\n\n')
+        print(f"Sending packet {util.extract_seq(packet)}")
+        check_for_acks()
+
+
+print("\n\n\n\n\n")
+print("SENDING FINISH PACKET NOW")
+print(packets)
 
 # Make finish packet
-finish, seq_no = util.make_pkt(finish=True)
+finish, finish_seq = util.make_fin()
 
 # Insert into dictionary
-packets[seq_no] = finish
+packets[finish_seq] = finish
+
+print(f'Sequence number of finish packet is {util.extract_seq(finish)}')
+print(packets)
+print("\n\n\n\n\n")
 
 # Keep sending finish packets until its ack is received.
 while len(packets) != 0: 
+    print(f'Sending finish packet {util.extract_seq(finish)}')
     badnet.BadNet.transmit(client, finish, SERVER_IP, PORT)
-    check_for_acks()
+    if check_for_acks():
+        break
 
-# Closing the socket and the file
+# Closing the socket
 client.close()
-f.close()
-
-
