@@ -1,30 +1,34 @@
-import pickle
 from hashlib import md5
 
 SEQ_NO = 0
 
 def make_pkt(data=b'0', finish=False):
-    '''Make Packet, Format: seq.no, ack_bit, finish_bit, checksum, data'''
-    global SEQ_NO
-    pkt = []
+    '''
+    Make Packet,
+    Format: checksum(2B), seq.no(2B), ack_bit(1B), finish_bit(1B), data(1018B)
+    Total: 1024 Bytes
+    '''
     
-    # Attach sequence number of next data paccket
-    pkt.append(str(bin(SEQ_NO)))
+    global SEQ_NO
+    
+    # Attach sequence number of next data packet
+    seq_bit = SEQ_NO.to_bytes(2, "big")
     
     # Set ack bit to 0
-    pkt.append(b'0')
+    ack_bit = b'0'
 
     # Finish bit determines whether we need to disconnect from a particular client or not.
     if finish:
-        pkt.append(b'1')
+        finish_bit = b'1'
 
     else:
-        pkt.append(b'0')
+        finish_bit = b'0'
 
-    pkt.append(get_checksum(data))
-    pkt.append(data)
-    pkt = pickle.dumps(pkt)
-    
+    pkt = seq_bit + ack_bit + finish_bit + data
+
+    # Attach checksum
+    checksum = get_checksum(pkt)
+    pkt = checksum + pkt
 
     # Increment the sequence number.
     SEQ_NO += 1
@@ -35,21 +39,20 @@ def make_pkt(data=b'0', finish=False):
 
 
 def extract_seq(pkt):
-    '''Deserialize packet, convert binary string to integer and return sequence number'''
-    seq = pickle.loads(pkt)[0]
-    seq = int(seq, 2)
-    return seq
+    '''Extract sequence number, convert it to integer'''
+    seq_bit = pkt[2:4]
+    return int.from_bytes(seq_bit, "big")
 
 def extract(pkt):
-    '''Deserialize packet and returns sequence number'''
-    return int(pickle.loads(pkt)[0], 2), pickle.loads(pkt)[-1]
+    '''Returns sequence number, data'''
+    return extract_seq(pkt), pkt[6:]
 
 def is_ack(pkt):
-    ack_bit = pickle.loads(pkt)[1]
+    ack_bit = pkt[4:5]
     return ack_bit == b'1'
 
 def is_finish(pkt):
-    finish_bit = pickle.loads(pkt)[2]
+    finish_bit = pkt[5:6]
     return finish_bit == b'1'
 
 def get_checksum(data):
@@ -59,58 +62,33 @@ def get_checksum(data):
     return checksum
 
 def make_ack(seq):
-    ack = []
-
-    data = b'0'
+    '''  
+    Make Ack Packet,
+    Format: checksum(2Bytes), seq.no(2B), ack_bit(1B), finish_bit(1B), data(1018B)
+    '''
 
     # Attach seq no. of received packet
-    ack.append(str(bin(seq)))
+    seq_bit = seq.to_bytes(2, "big")
     
     # Ack bit set to 1
-    ack.append(b'1')
+    ack_bit = b'1'
 
     # Finish bit set to 0
-    ack.append(b'0')
-
-    # Attach checksum
-    ack.append(get_checksum(data))
+    finish_bit  = b'0'
     
-    ack.append(data)
-    ack = pickle.dumps(ack)
+    # No data transmitted 
+    data = b'0'
+
+    ack = seq_bit + ack_bit + finish_bit + data
+
+    # attach checksum
+    checksum = get_checksum(ack) 
+    ack = checksum + ack
 
     return ack
 
-
-def make_fin():
-    '''Make Packet, Format: seq.no, ack_bit, finish_bit, checksum, data'''
-    finish = []
-    seq = -1
-
-    data = b'0'
-    # Attach sequence number of next data paccket
-    finish.append(str(bin(seq)))
-    
-    # Set ack bit to 0
-    finish.append(b'0')
-
-    # Finish bit determines whether we need to disconnect from a particular client or not.
-    finish.append(b'1')
-
-
-    finish.append(get_checksum(data))
-    finish.append(data)
-    finish = pickle.dumps(finish)
-    
-    return finish, seq
-
-
 def iscorrupt(pkt):
     '''Returns true if packet is corrupt'''
-
-    try:
-        # deserializing packet
-        pkt = pickle.loads(pkt)
-        return not(get_checksum(pkt[-1]) == pkt[-2])
+    recv_checksum = pkt[0:2]
     
-    except:
-        return True
+    return not(get_checksum(pkt[2:]) == recv_checksum)

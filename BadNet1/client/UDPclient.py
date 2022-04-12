@@ -1,6 +1,6 @@
 import socket
 from sys import argv, exit
-from Badnet import BadNet3 as badnet
+from Badnet import BadNet5 as badnet
 import time
 import select
 from Utility import utilFunctions as util
@@ -14,7 +14,7 @@ if len(argv) < 3:
 PORT = int(argv[1])
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 PACKET_SIZE = 1024
-DATA_SIZE = 975
+DATA_SIZE = 1018
 ADDR = (SERVER_IP, PORT)
 FORMAT = 'utf-8'
 FILE_NAME = argv[2]
@@ -41,6 +41,9 @@ def check_for_acks():
         else:
             print("CORRUPTED PACKET")
 
+# Open the local file in 'read-byte' mode
+f = open(FILE_NAME, 'rb')
+
 # Socket for client
 client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 print(f"Sending file {FILE_NAME}...")
@@ -52,8 +55,6 @@ badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
 
 packets[seq_no] = packet
 
-# Open the local file in 'read-byte' mode
-f = open(FILE_NAME, 'rb')
 
 # Read chunks of size equal to the size of the buffer, in this case the packet size.
 data = f.read(DATA_SIZE)
@@ -96,7 +97,7 @@ print("SENDING FINISH PACKET NOW")
 print(packets)
 
 # Make finish packet
-finish, finish_seq = util.make_fin()
+finish, finish_seq = util.make_pkt(finish=True)
 
 # Insert into dictionary
 packets[finish_seq] = finish

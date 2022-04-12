@@ -1,6 +1,6 @@
 import socket
 from sys import argv, exit
-from client.Badnet import BadNet3 as badnet
+from client.Badnet import BadNet5 as badnet
 from client.Utility import utilFunctions as util
 
 # Accepting valid command line arguments
@@ -14,7 +14,7 @@ SERVER_IP = socket.gethostbyname(socket.gethostname())
 PACKET_SIZE = 1024
 ADDR = (SERVER_IP, PORT)
 FORMAT = 'utf-8'
-FILE_SIZE = 2044
+FILE_SIZE = 2061
 DATA_BUFF = [0] * FILE_SIZE
 length = 0
 
