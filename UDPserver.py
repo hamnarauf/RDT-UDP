@@ -40,19 +40,20 @@ def handle_client(packet, addr):
         # If the sent packet is a finish request
         if util.is_finish(packet):
             ack = util.make_ack(seq_no)
-            print(f'Sending ack of FINISH1 packet {util.extract_seq(ack)}')
+            print(f'\n\nGoing to send ack of FINISH1 packet {util.extract_seq(ack)}')
             badnet.BadNet.transmit(server, ack, client_IP, client_port)
             return
 
         # Send ack
         ack = util.make_ack(seq_no)
 
+        print(f'\n\nGoing to send ack of packet {util.extract_seq(ack)}')
         badnet.BadNet.transmit(server, ack, client_IP, client_port)
-        print(f'Sending ack of packet {util.extract_seq(ack)}')
 
         DATA_BUFF[seq_no] = data
         length += 1
-
+    else:
+        print("CORRUPTED PACKET RECEIVED")
 
     while True:
 
@@ -66,8 +67,9 @@ def handle_client(packet, addr):
             if util.is_finish(recv_pkt):
 
                 ack = util.make_ack(seq_no)
+                print(f'\n\nGoing to send ack of FINISH2 packet {util.extract_seq(ack)}')
+                
                 badnet.BadNet.transmit(server, ack, client_IP, client_port)
-                print(f'Sending ack of FINISH2 packet {util.extract_seq(ack)}')
                 print(f"Disconnecting from client [{addr}]")
                 break
             
@@ -85,8 +87,10 @@ def handle_client(packet, addr):
 
                 # Send ack
                 ack = util.make_ack(seq_no)
+                print(f'\n\nGoing to send ack of packet {util.extract_seq(ack)}')
                 badnet.BadNet.transmit(server, ack, client_IP, client_port)
-                print(f'Sending ack of packet {util.extract_seq(ack)}')
+        else:
+            print("CORRUPTED PACKET RECEIVED")
     
     write_file()
     length = 0    
