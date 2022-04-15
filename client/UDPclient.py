@@ -4,34 +4,44 @@ from Badnet import BadNet5 as badnet
 import time
 import select
 from Utility import utilFunctions as util
+import multiprocessing as mp
 
-
-start = time.perf_counter()
-# Accepting valid command line arguments
-if len(argv) < 3:
-    print("Usage: python UDPclient.py {PORT} {FILENAME}")
-    exit()
-
-# Initializing constants
+# Each process is spawned with copies of these values.
+TIMEOUT = 0.001
+PACKET_SIZE = 1024
 PORT = int(argv[1])
 SERVER_IP = socket.gethostbyname(socket.gethostname())
-PACKET_SIZE = 1024
-DATA_SIZE = 1018
 ADDR = (SERVER_IP, PORT)
-FORMAT = 'utf-8'
-FILE_NAME = argv[2]
-TIMEOUT = 0.001
-packets = {}
 
-def check_for_acks():
-
-    # Useful for indicating whether there is some data being transmitted to the socket
-    ready = select.select([client], [], [], TIMEOUT)
+# Function to retransmit packets in case of loss/error
+def retransmit_pkts(client, packets):
     
-    print('\n\n\n')
-    if ready[0]:
+    while True:
+        
+        # Useful for indicating whether there is some data being transmitted to the socket
+        ready = select.select([client], [], [], TIMEOUT)
+        
+        keys = packets.keys()
+
+        if not ready[0] and len(keys) > 0:
+            o_unack = keys[0]
+            packet = packets.pop(o_unack)
+
+            print(f"\n\nGoing to send packet {util.extract_seq(packet)}")
+            
+            # Transmit packet
+            badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
+
+            # Re-insert into dictionary
+            packets[o_unack] = packet
+
+# Function to check for ack messages and let the sender know not to re-transmit correctly received packets.
+def check_for_acks(client, packets):
+
+    while True:
+
         recv_pkt, addr = client.recvfrom(PACKET_SIZE)
-    
+
         if not util.iscorrupt(recv_pkt):
             seq_no = util.extract_seq(recv_pkt)
             print(f"Received packet {seq_no}")
@@ -40,94 +50,101 @@ def check_for_acks():
                 print(f"Popped NONE")
             else:
                 print(f"Popping packet {seq_no}")
-            return True
+
         else:
             print("CORRUPTED PACKET")
 
 
-
-# Socket for client
-client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-
-print(f"Sending file {FILE_NAME}...")
-
-data = FILE_NAME.encode(FORMAT)
-packet, seq_no = util.make_pkt(data)
-badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
-packets[seq_no] = packet
-
-# Open the local file in 'read-byte' mode
-f = open(FILE_NAME, 'rb')
-
-# Read chunks of size equal to the size of the buffer, in this case the packet size.
-data = f.read(DATA_SIZE)
-
-# File transfer over the server port.
-while data:
+# Main process
+if __name__ == '__main__':
+    start = time.perf_counter()
     
-    # Pop packets for dictionary if ack has been received
-    check_for_acks()
+    # Accepting valid command line arguments
+    if len(argv) < 3:
+        print("Usage: python UDPclient.py {PORT} {FILENAME}")
+        exit()
 
-    # Make a new packet from the file
+    # Initializing constants for main process
+    DATA_SIZE = 1018
+    FORMAT = 'utf-8'
+    FILE_NAME = argv[2]
+    client = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    
+    # Creating a shared dictionary that every process can read/write to. Updates made in one process are reflected
+    # across every process    
+    manager = mp.Manager() 
+    packets = manager.dict() 
+    
+    print(f"Sending file {FILE_NAME}...")
+
+    data = FILE_NAME.encode(FORMAT)
     packet, seq_no = util.make_pkt(data)
-
     badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
-
-    # Sender keeps a buffer of sent but unacknowledged packets
     packets[seq_no] = packet
 
+
+    # Spawning two processes, one for checking acks, one for re-transmitting packets if required.
+    # The two processes run in parallel with the main process.
+    p1 = mp.Process(target=check_for_acks, args=(client,packets))
+    p1.start()
+
+    p2 = mp.Process(target=retransmit_pkts, args=(client,packets))
+    p2.start()
+    
+    # Open the local file in 'read-byte' mode
+    f = open(FILE_NAME, 'rb')
+
+    # Read chunks of size equal to the size of the buffer, in this case the packet size.
     data = f.read(DATA_SIZE)
 
-# Closing the file
-f.close()
+    # File transfer over the server port.
+    while data:
+   
+        # Make a new packet from the file
+        packet, seq_no = util.make_pkt(data)
 
-# Check for acks again after making all the packets from file
-check_for_acks()
+        badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
 
-print("\n\n\n\nGOING INTO 2nd WHILE LOOP NOW\n\n\n\n\n")
+        # Sender keeps a buffer of sent but unacknowledged packets
+        packets[seq_no] = packet
 
-# Keep sending unacknowledged packets until the dictionary is not empty.
-while len(packets) != 0: 
+        data = f.read(DATA_SIZE)
     
-    # Get the oldest inserted element of dictionary
-    o_unack = next(iter(packets))
-    packet = packets.pop(o_unack)
+    # Closing the file
+    f.close()
 
-    print(f"\n\nGoing to send packet {util.extract_seq(packet)}")
+    # Hold off client from sending finish packet until all prev packets have been correctly acknowleged
+    while len(packets) > 0:
+        pass
     
-    # Transmit packet
-    badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
+    print("\nSENDING FINISH PACKET NOW")
 
-    # Re-insert into dictionary
-    packets[o_unack] = packet
-    
-    print('\n\n\n')
-    check_for_acks()
+    # Make finish packet
+    finish, finish_seq = util.make_pkt(finish=True)
 
-check_for_acks()
-print(packets)
+    # Insert into dictionary
+    packets[finish_seq] = finish
 
-print("\n\n\n\n\n")
-print("SENDING FINISH PACKET NOW")
-
-# Make finish packet
-finish, finish_seq = util.make_pkt(finish=True)
-
-# Insert into dictionary
-packets[finish_seq] = finish
-
-print(f'Sequence number of finish packet is {util.extract_seq(finish)}')
-print(packets)
-print("\n\n\n\n\n")
-
-# Keep sending finish packets until its ack is received.
-while len(packets) != 0: 
-    print(f'\n\nGoing to send finish packet {util.extract_seq(finish)}')
     badnet.BadNet.transmit(client, finish, SERVER_IP, PORT)
-    if check_for_acks():
-        break
+    print(f'Sequence number of finish packet is {util.extract_seq(finish)}')
 
-# Closing the socket
-client.close()
-end = time.perf_counter()
-print(f"Finished in {round(end-start, 2)} second(s)")
+    # Hold off client from terminating until finish packet has been correctly acknowledged.
+    while len(packets) > 0:
+        pass
+
+
+    # p1.join()
+    # p2.join()
+
+    # Terminating the processes
+    p1.terminate()
+    p2.terminate()
+
+    # p1.close()
+    # p2.close()
+    
+    # Closing the socket
+    client.close()
+    
+    end = time.perf_counter()
+    print(f"Finished in {round(end-start, 2)} second(s)")
