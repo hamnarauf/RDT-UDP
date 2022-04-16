@@ -4,9 +4,18 @@ SEQ_NO = 0
 
 def make_pkt(data=b'0', finish=False):
     '''
-    Make Packet,
+    Make Packet
     Format: checksum(2B), seq.no(2B), ack_bit(1B), finish_bit(1B), data(1018B)
     Total: 1024 Bytes
+
+    Parameters:
+    data(byte): Data to be inserted in packet, default is b'0'
+    finish(boolean): finish is True for finish packet, default is 'False'
+
+    Returns:
+    bytes: Packet of size 1024 Bytes
+    int: Sequence number of packet
+
     '''
     
     global SEQ_NO
@@ -33,38 +42,96 @@ def make_pkt(data=b'0', finish=False):
     # Increment the sequence number.
     SEQ_NO += 1
     
-    print(SEQ_NO)
-
     return pkt, SEQ_NO - 1
 
 
 def extract_seq(pkt):
-    '''Extract sequence number, convert it to integer'''
+    '''
+    Extract sequence number, convert it to integer
+    
+    Parameter:
+    pkt(bytes): Packet from which sequence number is to be extracted
+
+    Returns:
+    int: sequence number
+    
+    '''
     seq_bit = pkt[2:4]
     return int.from_bytes(seq_bit, "big")
 
+
 def extract(pkt):
-    '''Returns sequence number, data'''
+    '''
+    Returns sequence number and data
+    
+    Parameter:
+    pkt(bytes): Packet from which sequence number and data is to be extracted
+
+    Returns:
+    int: Sequence number of packet 
+    bytes: Data of packet
+    
+    '''
     return extract_seq(pkt), pkt[6:]
 
+
 def is_ack(pkt):
+    '''
+    Checks if pkt is an acknowlegment packet
+
+    Parameter:
+    pkt(bytes): Packet
+
+    Returns:
+    boolean: True if pkt is an acknowlegement packet
+    
+    '''
     ack_bit = pkt[4:5]
     return ack_bit == b'1'
 
+
 def is_finish(pkt):
+    '''
+    Checks if pkt is a finish packet
+
+    Parameter:
+    pkt(bytes): Packet
+
+    Returns:
+    boolean: True if pkt is a finish packet
+    
+    '''
+
     finish_bit = pkt[5:6]
     return finish_bit == b'1'
 
+
 def get_checksum(data):
-    '''Generates 2-byte checksum using md5 hash function'''
+    '''
+    Generates 2-byte checksum using md5 hash function
+    
+    Parameter:
+    data(bytes): data to be sent
+
+    Returns:
+    bytes: checksum
+
+    '''
     checksum = md5(data).digest()[-2:]
 
     return checksum
 
 def make_ack(seq):
     '''  
-    Make Ack Packet,
+    Make acknowlegement Packet,
     Format: checksum(2Bytes), seq.no(2B), ack_bit(1B), finish_bit(1B), data(1018B)
+
+    Parameter:
+    seq(int): Sequence number of packet whose ack is to be sent
+
+    Returns:
+    bytes: Acknowlegement packet of size 1024 Bytes
+
     '''
 
     # Attach seq no. of received packet
@@ -88,7 +155,15 @@ def make_ack(seq):
     return ack
 
 def iscorrupt(pkt):
-    '''Returns true if packet is corrupt'''
+    '''
+    Checks if pkt is corrupt
+
+    Parameter:
+    pkt(bytes): Packet
+
+    Returns:
+    boolean: True if pkt is corrupt
+    '''
+
     recv_checksum = pkt[0:2]
-    
     return not(get_checksum(pkt[2:]) == recv_checksum)

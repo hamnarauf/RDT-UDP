@@ -14,7 +14,7 @@ SERVER_IP = socket.gethostbyname(socket.gethostname())
 PACKET_SIZE = 1024
 ADDR = (SERVER_IP, PORT)
 FORMAT = 'utf-8'
-FILE_SIZE = 2061
+FILE_SIZE = 2070
 DATA_BUFF = [0] * FILE_SIZE
 length = 0
 
@@ -24,7 +24,16 @@ server.bind(ADDR)
 
 
 def handle_client(packet, addr):
-    """Handle each client requests"""
+    
+    """
+    Handle each client requests
+    
+    Parameters:
+    packet(bytes): data received from client
+    addr(tuple): IP and port of client -> (client_IP, client_port)
+
+    """
+
     global length
 
     client_IP = addr[0]
@@ -34,42 +43,34 @@ def handle_client(packet, addr):
         
         # Extract contents of packet
         seq_no, data = util.extract(packet)
-
-        print(f"Received {seq_no}")
         
-        # If the sent packet is a finish request
-        if util.is_finish(packet):
-            ack = util.make_ack(seq_no)
-            print(f'\n\nGoing to send ack of FINISH1 packet {util.extract_seq(ack)}')
-            badnet.BadNet.transmit(server, ack, client_IP, client_port)
-            return
-
-        # Send ack
+        # Send ack of correctly received packet
         ack = util.make_ack(seq_no)
-
-        print(f'\n\nGoing to send ack of packet {util.extract_seq(ack)}')
         badnet.BadNet.transmit(server, ack, client_IP, client_port)
+        
+        # If the sent packet is a finish request send ack and disconnect
+        if util.is_finish(packet):
+            return
 
         DATA_BUFF[seq_no] = data
         length += 1
-    else:
-        print("CORRUPTED PACKET RECEIVED")
 
     while True:
 
         recv_pkt, addr = server.recvfrom(PACKET_SIZE)
 
         if not util.iscorrupt(recv_pkt):
+            
+            # extract sequence number from the received packet
             seq_no, data = util.extract(recv_pkt)
 
-            print(f"Received {seq_no}")
-
+            # Send ack of correctly received packet
+            ack = util.make_ack(seq_no)       
+            badnet.BadNet.transmit(server, ack, client_IP, client_port)
+            
+            # If the sent packet is a finish request disconnect from client
             if util.is_finish(recv_pkt):
 
-                ack = util.make_ack(seq_no)
-                print(f'\n\nGoing to send ack of FINISH2 packet {util.extract_seq(ack)}')
-                
-                badnet.BadNet.transmit(server, ack, client_IP, client_port)
                 print(f"Disconnecting from client [{addr}]")
                 break
             
@@ -84,18 +85,12 @@ def handle_client(packet, addr):
                 # Discard duplicate packet
                 else:
                     pass
-
-                # Send ack
-                ack = util.make_ack(seq_no)
-                print(f'\n\nGoing to send ack of packet {util.extract_seq(ack)}')
-                badnet.BadNet.transmit(server, ack, client_IP, client_port)
-        else:
-            print("CORRUPTED PACKET RECEIVED")
     
     write_file()
     length = 0    
 
 def write_file():
+    ''' Creates file received from client '''
     
     global DATA_BUFF
 
@@ -115,8 +110,7 @@ def write_file():
     DATA_BUFF = [0] * FILE_SIZE
 
 def start():
-
-    
+  
     while True:
         print(f"[{SERVER_IP}]: Server is listening on PORT {PORT}")
         try:
@@ -126,7 +120,6 @@ def start():
             # Handle client requests
             handle_client(rcv_packet, addr)
         except:
-            print("CONNECTION ERRORRR")
             pass
 
 start()

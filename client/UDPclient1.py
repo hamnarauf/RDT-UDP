@@ -1,6 +1,6 @@
 import socket
 from sys import argv, exit
-from Badnet import BadNet5 as badnet
+from Badnet import BadNet0 as badnet
 import time
 import select
 from Utility import utilFunctions as util
