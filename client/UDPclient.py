@@ -1,53 +1,51 @@
 import socket
 from sys import argv, exit
 from Badnet import BadNet5 as badnet
+import select
 import time
 from Utility import utilFunctions as util
 import multiprocessing as mp
 from os.path import exists as file_exists
 
 
-# Each process is spawned with copies of these values.
-TIMEOUT = 0.0009
+# Global variables
+TIMEOUT = 0.005
 PACKET_SIZE = 1024
 PORT = int(argv[1])
 SERVER_IP = socket.gethostbyname(socket.gethostname())
 ADDR = (SERVER_IP, PORT)
 
 
-def retransmit_pkts(client, packets):
+
+def retransmit(client, packets):
     '''
     Function to retransmit packets in case of loss/error
-
     Parameters:
     client(socket): Client socket
     packets(dictionary): Buffer of all unacknowledged packets
       
     '''
-    while True:
+    keys = packets.keys()
+    print(keys)
+    if len(keys) > 0:
         
-        # Time for retransmission. Wait 'TIMEOUT' seconds before retransmitting any unack packet.
-        util.sleep(TIMEOUT)
-
-        # Get keys of dictionary in the order in which they were inserted.
-        keys = packets.keys()
-
-        # If there are any unack packets
-        if len(keys) > 0:
-    
+        for key in keys:
+            print(f"The key is {key}")
+            
             # Dequeue oldest unacknowledged packet
-            o_unack = keys[0]
+            o_unack = key
             packet = packets.pop(o_unack, None)
 
             if packet:  
+                
                 # Transmit packet
                 badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
 
                 # Re-insert into dictionary
-                packets[o_unack] = packet
-
+                packets[o_unack] = packet  
 
 def check_for_acks(client, packets):
+
     '''
     Function to check for ack messages and let the sender know not to re-transmit correctly received packets.
 
@@ -56,16 +54,24 @@ def check_for_acks(client, packets):
     packets(Dictionary): Buffer of all unacknowledged packets
     
     '''
+    ready = select.select([client], [], [], TIMEOUT)
 
-    while True:
-
+    if ready[0]:
         recv_pkt, addr = client.recvfrom(PACKET_SIZE)
 
-        # If ack is received, pop packet of this sequence number
+        print(f"Received {util.extract_seq(recv_pkt)}")
+        
+        # If ack is correctly received, pop packet of this sequence number
         if not util.iscorrupt(recv_pkt):
             seq_no = util.extract_seq(recv_pkt)
             packets.pop(seq_no, None)
 
+    # Ack is not received and timer expires. 
+    else:
+        print("RETRANSMISSION DUE TO LOSS")
+        retransmit(client, packets)
+
+    return
 
 # Main process
 if __name__ == '__main__':
@@ -99,14 +105,6 @@ if __name__ == '__main__':
     badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
     packets[seq_no] = packet
 
-    # Spawning two processes, one for checking acks, one for re-transmitting packets if required.
-    # The two processes run in parallel with the main process.
-    p1 = mp.Process(target=check_for_acks, args=(client,packets))
-    p1.start()
-
-    p2 = mp.Process(target=retransmit_pkts, args=(client,packets))
-    p2.start()
-    
     # Open the local file in 'read-byte' mode
     f = open(FILE_NAME, 'rb')
 
@@ -118,19 +116,31 @@ if __name__ == '__main__':
    
         # Make a new packet from the file and transmit to server
         packet, seq_no = util.make_pkt(data)
-        badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
-
+        
         # Sender keeps a buffer of sent but unacknowledged packets
         packets[seq_no] = packet
+        
+        
+        badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
 
+        # Check for any received ack messages
+        check_for_acks(client, packets)
+        print(packets.keys())
+        print(f"Length: {len(packets)}")
+        
         data = f.read(DATA_SIZE)
 
     # Closing the file
     f.close()
 
+    
+    print(len(packets))
+    
     # Hold off client from sending finish packet until all prev packets have been correctly acknowledged
     while len(packets) > 0:
-        pass
+        check_for_acks(client, packets)
+        print(packets.keys())
+        print(f"Length: {len(packets)}")
     
 
     # Make finish packet
@@ -143,13 +153,8 @@ if __name__ == '__main__':
 
     # Hold off client from terminating until finish packet has been correctly acknowledged.
     while len(packets) > 0:
-        pass
+        check_for_acks(client, packets)
 
-
-    # Terminating the processes
-    p1.terminate()
-    p2.terminate()
-    
     # Closing the socket
     client.close()
     

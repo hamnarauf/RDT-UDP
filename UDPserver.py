@@ -1,6 +1,6 @@
 import socket
 from sys import argv, exit
-from client.Badnet import BadNet5 as badnet
+from client.Badnet import BadNet0 as badnet
 from client.Utility import utilFunctions as util
 from time import perf_counter
 
@@ -18,12 +18,10 @@ FORMAT = 'utf-8'
 FILE_SIZE = 2070
 DATA_BUFF = [0] * FILE_SIZE
 length = 0
-TIMEOUT = 0.00095
 
 # Socket for server
 server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 server.bind(ADDR)
-
 
 def handle_client(packet, addr):
     
@@ -72,8 +70,6 @@ def handle_client(packet, addr):
             # Send ack of correctly received packet
             ack = util.make_ack(seq_no)       
             
-            # Flow control.
-            util.sleep(TIMEOUT)
             badnet.BadNet.transmit(server, ack, client_IP, client_port)
             
             # If the sent packet is a finish request disconnect from client
