@@ -1,5 +1,5 @@
 from hashlib import md5
-
+from time import perf_counter
 SEQ_NO = 0
 
 def make_pkt(data=b'0', finish=False):
@@ -77,13 +77,13 @@ def extract(pkt):
 
 def is_ack(pkt):
     '''
-    Checks if pkt is an acknowlegment packet
+    Checks if pkt is an acknowledgment packet
 
     Parameter:
     pkt(bytes): Packet
 
     Returns:
-    boolean: True if pkt is an acknowlegement packet
+    boolean: True if pkt is an acknowledgement packet
     
     '''
     ack_bit = pkt[4:5]
@@ -123,14 +123,14 @@ def get_checksum(data):
 
 def make_ack(seq):
     '''  
-    Make acknowlegement Packet,
+    Make acknowledgement Packet,
     Format: checksum(2Bytes), seq.no(2B), ack_bit(1B), finish_bit(1B), data(1018B)
 
     Parameter:
     seq(int): Sequence number of packet whose ack is to be sent
 
     Returns:
-    bytes: Acknowlegement packet of size 1024 Bytes
+    bytes: acknowledgement packet of size 1024 Bytes
 
     '''
 
@@ -167,3 +167,20 @@ def iscorrupt(pkt):
 
     recv_checksum = pkt[0:2]
     return not(get_checksum(pkt[2:]) == recv_checksum)
+
+# Function to make the program wait 'duration' seconds. Works better than time.sleep() for smaller values.
+def sleep(duration, get_now=perf_counter):
+    '''
+    Make program wait 'duration' seconds. Works better than
+    time.sleep() for smaller values of time.
+
+    Parameter:
+    duration: Amount of time in seconds you want to stall.
+
+    Returns:
+    None: Stops program and returns.
+    '''
+    now = get_now()
+    end = now + duration
+    while now < end:
+        now = get_now()

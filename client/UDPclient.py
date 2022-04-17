@@ -2,14 +2,13 @@ import socket
 from sys import argv, exit
 from Badnet import BadNet5 as badnet
 import time
-import select
 from Utility import utilFunctions as util
 import multiprocessing as mp
 from os.path import exists as file_exists
 
 
 # Each process is spawned with copies of these values.
-TIMEOUT = 0.001
+TIMEOUT = 0.0009
 PACKET_SIZE = 1024
 PORT = int(argv[1])
 SERVER_IP = socket.gethostbyname(socket.gethostname())
@@ -22,25 +21,30 @@ def retransmit_pkts(client, packets):
 
     Parameters:
     client(socket): Client socket
-    packets(dictionary): Buffer of all unacknowleged packets
+    packets(dictionary): Buffer of all unacknowledged packets
       
     '''
     while True:
         
-        # Useful for indicating whether there is some data being transmitted to the socket
-        ready = select.select([client], [], [], TIMEOUT)
-        
+        # Time for retransmission. Wait 'TIMEOUT' seconds before retransmitting any unack packet.
+        util.sleep(TIMEOUT)
+
+        # Get keys of dictionary in the order in which they were inserted.
         keys = packets.keys()
 
-        if not ready[0] and len(keys) > 0:
+        # If there are any unack packets
+        if len(keys) > 0:
+    
+            # Dequeue oldest unacknowledged packet
             o_unack = keys[0]
-            packet = packets.pop(o_unack)
+            packet = packets.pop(o_unack, None)
 
-            # Transmit packet
-            badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
+            if packet:  
+                # Transmit packet
+                badnet.BadNet.transmit(client, packet, SERVER_IP, PORT)
 
-            # Re-insert into dictionary
-            packets[o_unack] = packet
+                # Re-insert into dictionary
+                packets[o_unack] = packet
 
 
 def check_for_acks(client, packets):
@@ -49,7 +53,7 @@ def check_for_acks(client, packets):
 
     Parameters:
     client(Socket): Client socket
-    packets(Dictionary): Buffer of all unacknowleged packets
+    packets(Dictionary): Buffer of all unacknowledged packets
     
     '''
 
@@ -57,7 +61,7 @@ def check_for_acks(client, packets):
 
         recv_pkt, addr = client.recvfrom(PACKET_SIZE)
 
-        # If ack is received pop packet of this seqeuence number
+        # If ack is received, pop packet of this sequence number
         if not util.iscorrupt(recv_pkt):
             seq_no = util.extract_seq(recv_pkt)
             packets.pop(seq_no, None)
@@ -84,11 +88,11 @@ if __name__ == '__main__':
         exit()
 
     # Creating a shared dictionary that every process can read/write to. Updates made in one process are reflected
-    # across every process    
+    # across each process    
     manager = mp.Manager() 
     packets = manager.dict() 
     
-    # sending file name to server
+    # Sending file name to server
     print(f"Sending file {FILE_NAME}...")
     data = FILE_NAME.encode(FORMAT)
     packet, seq_no = util.make_pkt(data)
@@ -120,11 +124,11 @@ if __name__ == '__main__':
         packets[seq_no] = packet
 
         data = f.read(DATA_SIZE)
-    
+
     # Closing the file
     f.close()
 
-    # Hold off client from sending finish packet until all prev packets have been correctly acknowleged
+    # Hold off client from sending finish packet until all prev packets have been correctly acknowledged
     while len(packets) > 0:
         pass
     
